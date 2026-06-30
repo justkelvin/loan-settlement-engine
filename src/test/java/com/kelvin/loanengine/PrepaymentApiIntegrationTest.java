@@ -1,6 +1,7 @@
 package com.kelvin.loanengine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -135,6 +136,44 @@ class PrepaymentApiIntegrationTest {
 		assertThat(transaction.getAmount()).isEqualByComparingTo(new BigDecimal("200000.00"));
 		assertThat(transaction.getBalanceBefore()).isEqualByComparingTo(new BigDecimal("669724.82"));
 		assertThat(transaction.getBalanceAfter()).isEqualByComparingTo(new BigDecimal("469724.82"));
+	}
+
+	@Test
+	void loanAndScheduleQueriesReflectAppliedPrepayment() throws Exception {
+		Long loanId = createBaseLoan();
+
+		mockMvc.perform(post("/api/loans/{loanId}/prepayments", loanId)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(VALID_PREPAYMENT_REQUEST))
+				.andExpect(status().isOk());
+
+		MvcResult loanResult = mockMvc.perform(get("/api/loans/{loanId}", loanId))
+				.andExpect(status().isOk())
+				.andReturn();
+		JsonNode loan = readJson(loanResult);
+		assertThat(loan.path("loanId").longValue()).isEqualTo(loanId);
+		assertThat(loan.path("monthlyEmi").asDecimal()).isEqualByComparingTo(new BigDecimal("15601.59"));
+		assertThat(loan.path("status").asString()).isEqualTo("ACTIVE");
+
+		MvcResult scheduleResult = mockMvc.perform(get("/api/loans/{loanId}/schedule", loanId))
+				.andExpect(status().isOk())
+				.andReturn();
+		JsonNode schedule = readJson(scheduleResult);
+		assertThat(schedule).hasSize(60);
+
+		JsonNode paidThroughSchedule = schedule.path(23);
+		assertThat(paidThroughSchedule.path("installmentNumber").intValue()).isEqualTo(24);
+		assertThat(paidThroughSchedule.path("closingBalance").asDecimal())
+				.isEqualByComparingTo(new BigDecimal("669724.82"));
+		assertThat(paidThroughSchedule.path("status").asString()).isEqualTo("PAID");
+
+		JsonNode firstAdjustedSchedule = schedule.path(24);
+		assertThat(firstAdjustedSchedule.path("installmentNumber").intValue()).isEqualTo(25);
+		assertThat(firstAdjustedSchedule.path("openingBalance").asDecimal())
+				.isEqualByComparingTo(new BigDecimal("469724.82"));
+		assertThat(firstAdjustedSchedule.path("emiAmount").asDecimal())
+				.isEqualByComparingTo(new BigDecimal("15601.59"));
+		assertThat(firstAdjustedSchedule.path("status").asString()).isEqualTo("ADJUSTED");
 	}
 
 	@Test
