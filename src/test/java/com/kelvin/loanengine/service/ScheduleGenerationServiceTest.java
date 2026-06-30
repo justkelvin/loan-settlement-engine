@@ -76,6 +76,36 @@ class ScheduleGenerationServiceTest {
 	}
 
 	@Test
+	void generateScheduleSegmentSupportsRecalculatedFutureInstallments() {
+		List<LoanSchedule> schedule = scheduleGenerationService.generateScheduleSegment(
+				new BigDecimal("469724.82"),
+				new BigDecimal("12"),
+				36,
+				new BigDecimal("15601.57"),
+				LocalDate.of(2026, 7, 24),
+				25,
+				ScheduleStatus.ADJUSTED);
+
+		assertThat(schedule).hasSize(36);
+
+		LoanSchedule firstAdjusted = schedule.get(0);
+		assertThat(firstAdjusted.getInstallmentNumber()).isEqualTo(25);
+		assertThat(firstAdjusted.getDueDate()).isEqualTo(LocalDate.of(2026, 7, 24));
+		assertThat(firstAdjusted.getOpeningBalance()).isEqualByComparingTo(new BigDecimal("469724.82"));
+		assertThat(firstAdjusted.getEmiAmount()).isEqualByComparingTo(new BigDecimal("15601.57"));
+		assertThat(firstAdjusted.getInterestComponent()).isEqualByComparingTo(new BigDecimal("4697.25"));
+		assertThat(firstAdjusted.getPrincipalComponent()).isEqualByComparingTo(new BigDecimal("10904.34"));
+		assertThat(firstAdjusted.getClosingBalance()).isEqualByComparingTo(new BigDecimal("458820.48"));
+		assertThat(firstAdjusted.getStatus()).isEqualTo(ScheduleStatus.ADJUSTED);
+
+		LoanSchedule finalAdjusted = schedule.get(35);
+		assertThat(finalAdjusted.getInstallmentNumber()).isEqualTo(60);
+		assertThat(finalAdjusted.getDueDate()).isEqualTo(LocalDate.of(2029, 6, 24));
+		assertThat(finalAdjusted.getClosingBalance()).isEqualByComparingTo(new BigDecimal("0.00"));
+		assertThat(finalAdjusted.getStatus()).isEqualTo(ScheduleStatus.ADJUSTED);
+	}
+
+	@Test
 	void generateScheduleRejectsInvalidInputs() {
 		assertThatThrownBy(() -> scheduleGenerationService.generateSchedule(
 				BigDecimal.ZERO,
