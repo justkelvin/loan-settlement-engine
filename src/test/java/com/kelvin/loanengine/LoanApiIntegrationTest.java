@@ -13,6 +13,7 @@ import com.kelvin.loanengine.repository.LoanRepository;
 import com.kelvin.loanengine.repository.LoanScheduleRepository;
 import com.kelvin.loanengine.repository.LoanTransactionRepository;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -65,15 +66,15 @@ class LoanApiIntegrationTest {
 	@Test
 	void createLoanPersistsLoanAndFullSchedule() throws Exception {
 		JsonNode response = createBaseLoan();
-		Long loanId = response.get("loanId").longValue();
+		Long loanId = response.path("loanId").longValue();
 
 		assertThat(loanId).isNotNull();
-		assertThat(response.get("principalAmount").asDecimal()).isEqualByComparingTo(new BigDecimal("1000000.00"));
-		assertThat(response.get("annualInterestRate").asDecimal()).isEqualByComparingTo(new BigDecimal("12"));
-		assertThat(response.get("tenorMonths").intValue()).isEqualTo(60);
-		assertThat(response.get("monthlyEmi").asDecimal()).isEqualByComparingTo(new BigDecimal("22244.45"));
-		assertThat(response.get("status").textValue()).isEqualTo("ACTIVE");
-		assertThat(response.get("startDate").textValue()).isEqualTo("2024-07-24");
+		assertThat(response.path("principalAmount").asDecimal()).isEqualByComparingTo(new BigDecimal("1000000.00"));
+		assertThat(response.path("annualInterestRate").asDecimal()).isEqualByComparingTo(new BigDecimal("12"));
+		assertThat(response.path("tenorMonths").intValue()).isEqualTo(60);
+		assertThat(response.path("monthlyEmi").asDecimal()).isEqualByComparingTo(new BigDecimal("22244.45"));
+		assertThat(response.path("status").asString()).isEqualTo("ACTIVE");
+		assertThat(response.path("startDate").asString()).isEqualTo("2024-07-24");
 
 		Loan savedLoan = loanRepository.findById(loanId).orElseThrow();
 		assertThat(savedLoan.getStatus()).isEqualTo(LoanStatus.ACTIVE);
@@ -86,21 +87,21 @@ class LoanApiIntegrationTest {
 
 	@Test
 	void getLoanReturnsPersistedLoanDetails() throws Exception {
-		Long loanId = createBaseLoan().get("loanId").longValue();
+		Long loanId = createBaseLoan().path("loanId").longValue();
 
 		MvcResult result = mockMvc.perform(get("/api/loans/{loanId}", loanId))
 				.andExpect(status().isOk())
 				.andReturn();
 
 		JsonNode response = readJson(result);
-		assertThat(response.get("loanId").longValue()).isEqualTo(loanId);
-		assertThat(response.get("monthlyEmi").asDecimal()).isEqualByComparingTo(new BigDecimal("22244.45"));
-		assertThat(response.get("status").textValue()).isEqualTo("ACTIVE");
+		assertThat(response.path("loanId").longValue()).isEqualTo(loanId);
+		assertThat(response.path("monthlyEmi").asDecimal()).isEqualByComparingTo(new BigDecimal("22244.45"));
+		assertThat(response.path("status").asString()).isEqualTo("ACTIVE");
 	}
 
 	@Test
 	void getScheduleReturnsRowsOrderedByInstallmentNumber() throws Exception {
-		Long loanId = createBaseLoan().get("loanId").longValue();
+		Long loanId = createBaseLoan().path("loanId").longValue();
 
 		MvcResult result = mockMvc.perform(get("/api/loans/{loanId}/schedule", loanId))
 				.andExpect(status().isOk())
@@ -109,19 +110,19 @@ class LoanApiIntegrationTest {
 		JsonNode schedule = readJson(result);
 		assertThat(schedule).hasSize(60);
 
-		JsonNode firstInstallment = schedule.get(0);
-		assertThat(firstInstallment.get("loanId").longValue()).isEqualTo(loanId);
-		assertThat(firstInstallment.get("installmentNumber").intValue()).isEqualTo(1);
-		assertThat(firstInstallment.get("dueDate").textValue()).isEqualTo("2024-07-24");
-		assertThat(firstInstallment.get("interestComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("10000.00"));
-		assertThat(firstInstallment.get("principalComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("12244.45"));
-		assertThat(firstInstallment.get("closingBalance").asDecimal()).isEqualByComparingTo(new BigDecimal("987755.55"));
+		JsonNode firstInstallment = schedule.path(0);
+		assertThat(firstInstallment.path("loanId").longValue()).isEqualTo(loanId);
+		assertThat(firstInstallment.path("installmentNumber").intValue()).isEqualTo(1);
+		assertThat(firstInstallment.path("dueDate").asString()).isEqualTo("2024-07-24");
+		assertThat(firstInstallment.path("interestComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("10000.00"));
+		assertThat(firstInstallment.path("principalComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("12244.45"));
+		assertThat(firstInstallment.path("closingBalance").asDecimal()).isEqualByComparingTo(new BigDecimal("987755.55"));
 
-		JsonNode installment = schedule.get(23);
-		assertThat(installment.get("installmentNumber").intValue()).isEqualTo(24);
-		assertThat(installment.get("interestComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("6851.18"));
-		assertThat(installment.get("principalComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("15393.27"));
-		assertThat(installment.get("closingBalance").asDecimal()).isEqualByComparingTo(new BigDecimal("669724.82"));
+		JsonNode installment = schedule.path(23);
+		assertThat(installment.path("installmentNumber").intValue()).isEqualTo(24);
+		assertThat(installment.path("interestComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("6851.18"));
+		assertThat(installment.path("principalComponent").asDecimal()).isEqualByComparingTo(new BigDecimal("15393.27"));
+		assertThat(installment.path("closingBalance").asDecimal()).isEqualByComparingTo(new BigDecimal("669724.82"));
 	}
 
 	@Test
@@ -161,7 +162,7 @@ class LoanApiIntegrationTest {
 	}
 
 	private JsonNode readJson(MvcResult result) throws Exception {
-		String responseBody = result.getResponse().getContentAsString();
+		String responseBody = new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
 		return objectMapper.readTree(responseBody);
 	}
 }
