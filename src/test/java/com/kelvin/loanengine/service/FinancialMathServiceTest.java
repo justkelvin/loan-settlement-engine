@@ -22,6 +22,17 @@ class FinancialMathServiceTest {
 	}
 
 	@Test
+	void calculateExactEmiKeepsInternalPrecisionForScheduleGeneration() {
+		BigDecimal exactEmi = financialMathService.calculateExactEmi(
+				new BigDecimal("1000000.00"),
+				new BigDecimal("12"),
+				60);
+
+		assertThat(exactEmi).isEqualByComparingTo(new BigDecimal("22244.44768490177764962671"));
+		assertThat(financialMathService.roundMoney(exactEmi)).isEqualByComparingTo(new BigDecimal("22244.45"));
+	}
+
+	@Test
 	void calculateMonthlyRateConvertsAnnualPercentageToMonthlyDecimalRate() {
 		BigDecimal monthlyRate = financialMathService.calculateMonthlyRate(new BigDecimal("12"));
 

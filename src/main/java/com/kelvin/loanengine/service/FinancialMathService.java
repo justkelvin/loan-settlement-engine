@@ -28,6 +28,10 @@ public class FinancialMathService {
 	}
 
 	public BigDecimal calculateEmi(BigDecimal principalAmount, BigDecimal annualInterestRate, int tenorMonths) {
+		return roundMoney(calculateExactEmi(principalAmount, annualInterestRate, tenorMonths));
+	}
+
+	public BigDecimal calculateExactEmi(BigDecimal principalAmount, BigDecimal annualInterestRate, int tenorMonths) {
 		Objects.requireNonNull(principalAmount, "principalAmount must not be null");
 		if (principalAmount.compareTo(BigDecimal.ZERO) <= 0) {
 			throw new IllegalArgumentException("principalAmount must be greater than zero");
@@ -38,14 +42,14 @@ public class FinancialMathService {
 
 		BigDecimal monthlyRate = calculateMonthlyRate(annualInterestRate);
 		if (monthlyRate.compareTo(BigDecimal.ZERO) == 0) {
-			return roundMoney(principalAmount.divide(BigDecimal.valueOf(tenorMonths), CALCULATION_SCALE, RoundingMode.HALF_UP));
+			return principalAmount.divide(BigDecimal.valueOf(tenorMonths), CALCULATION_SCALE, RoundingMode.HALF_UP);
 		}
 
 		BigDecimal rateFactor = BigDecimal.ONE.add(monthlyRate).pow(tenorMonths, POW_CONTEXT);
 		BigDecimal numerator = principalAmount.multiply(monthlyRate).multiply(rateFactor);
 		BigDecimal denominator = rateFactor.subtract(BigDecimal.ONE);
 
-		return roundMoney(numerator.divide(denominator, CALCULATION_SCALE, RoundingMode.HALF_UP));
+		return numerator.divide(denominator, CALCULATION_SCALE, RoundingMode.HALF_UP);
 	}
 
 	public BigDecimal calculateMonthlyInterest(BigDecimal openingBalance, BigDecimal annualInterestRate) {
