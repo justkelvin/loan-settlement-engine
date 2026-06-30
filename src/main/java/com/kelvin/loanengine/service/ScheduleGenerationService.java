@@ -26,19 +26,62 @@ public class ScheduleGenerationService {
 			LocalDate startDate) {
 		validateInputs(principalAmount, annualInterestRate, tenorMonths, monthlyEmi, startDate);
 
-		List<LoanSchedule> schedules = new ArrayList<>(tenorMonths);
+		return generateScheduleRows(
+				principalAmount,
+				annualInterestRate,
+				tenorMonths,
+				monthlyEmi,
+				startDate,
+				1,
+				ScheduleStatus.PENDING);
+	}
+
+	public List<LoanSchedule> generateScheduleSegment(
+			BigDecimal openingPrincipal,
+			BigDecimal annualInterestRate,
+			int installmentCount,
+			BigDecimal monthlyEmi,
+			LocalDate firstDueDate,
+			int firstInstallmentNumber,
+			ScheduleStatus status) {
+		validateInputs(openingPrincipal, annualInterestRate, installmentCount, monthlyEmi, firstDueDate);
+		Objects.requireNonNull(status, "status must not be null");
+		if (firstInstallmentNumber <= 0) {
+			throw new IllegalArgumentException("firstInstallmentNumber must be greater than zero");
+		}
+
+		return generateScheduleRows(
+				openingPrincipal,
+				annualInterestRate,
+				installmentCount,
+				monthlyEmi,
+				firstDueDate,
+				firstInstallmentNumber,
+				status);
+	}
+
+	private List<LoanSchedule> generateScheduleRows(
+			BigDecimal principalAmount,
+			BigDecimal annualInterestRate,
+			int installmentCount,
+			BigDecimal monthlyEmi,
+			LocalDate firstDueDate,
+			int firstInstallmentNumber,
+			ScheduleStatus status) {
+		List<LoanSchedule> schedules = new ArrayList<>(installmentCount);
 		BigDecimal openingBalance = principalAmount;
 		BigDecimal exactMonthlyEmi = financialMathService.calculateExactEmi(
 				principalAmount,
 				annualInterestRate,
-				tenorMonths);
+				installmentCount);
 		BigDecimal monthlyRate = financialMathService.calculateMonthlyRate(annualInterestRate);
 
-		for (int installmentNumber = 1; installmentNumber <= tenorMonths; installmentNumber++) {
+		for (int offset = 0; offset < installmentCount; offset++) {
+			int installmentNumber = firstInstallmentNumber + offset;
 			BigDecimal exactInterestComponent = openingBalance.multiply(monthlyRate);
 			BigDecimal exactPrincipalComponent = exactMonthlyEmi.subtract(exactInterestComponent);
 
-			if (installmentNumber == tenorMonths || exactPrincipalComponent.compareTo(openingBalance) > 0) {
+			if (offset == installmentCount - 1 || exactPrincipalComponent.compareTo(openingBalance) > 0) {
 				exactPrincipalComponent = openingBalance;
 			}
 
@@ -46,13 +89,13 @@ public class ScheduleGenerationService {
 
 			LoanSchedule schedule = new LoanSchedule();
 			schedule.setInstallmentNumber(installmentNumber);
-			schedule.setDueDate(startDate.plusMonths(installmentNumber - 1L));
+			schedule.setDueDate(firstDueDate.plusMonths(offset));
 			schedule.setOpeningBalance(financialMathService.roundMoney(openingBalance));
 			schedule.setEmiAmount(monthlyEmi);
 			schedule.setInterestComponent(financialMathService.roundMoney(exactInterestComponent));
 			schedule.setPrincipalComponent(financialMathService.roundMoney(exactPrincipalComponent));
 			schedule.setClosingBalance(financialMathService.roundMoney(closingBalance));
-			schedule.setStatus(ScheduleStatus.PENDING);
+			schedule.setStatus(status);
 			schedules.add(schedule);
 
 			openingBalance = closingBalance;
